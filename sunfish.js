@@ -707,13 +707,16 @@ sunfish.engine = function(cmd, output=null) {
         for (let ply of range(moves.length))
         {
             const move = moves[ply];
-            let i = parse(move.slice(0,2)), j = parse(move.slice(2,4)), prom = move.slice(4).toUpperCase();
-            if (ply % 2 === 1)
+            if (move.length >= 4)
             {
-                i = 119 - i;
-                j = 119 - j;
+                let i = parse(move.slice(0,2)), j = parse(move.slice(2,4)), prom = move.slice(4).toUpperCase();
+                if (ply % 2 === 1)
+                {
+                    i = 119 - i;
+                    j = 119 - j;
+                }
+                hist.push(hist[hist.length-1].move(new Move(i, j, prom)));
             }
-            hist.push(hist[hist.length-1].move(new Move(i, j, prom)));
         }
     }
 
