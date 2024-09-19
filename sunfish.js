@@ -604,7 +604,7 @@ Searcher.prototype = {
         return best;
     },
 
-    search: function*(history, maxDepth=1000/*added maxDepth*/) {
+    search: function*(history, maxDepth=999/*added maxDepth*/) {
         const self = this;
         //"""Iterative deepening MTD-bi search"""
         self.nodes = 0;
@@ -615,13 +615,14 @@ Searcher.prototype = {
         //# In finished games, we could potentially go far enough to cause a recursion
         //# limit exception. Hence we bound the ply. We also can't start at 0, since
         //# that's quiscent search, and we don't always play legal moves there.
-        for (let depth of range(1, Math.max(1, maxDepth)))
+        for (let depth of range(1, Math.max(1, maxDepth)+1))
         {
             //# The inner loop is a binary search on the score of the position.
             //# Inv: lower <= score <= upper
             //# 'while lower != upper' would work, but it's too much effort to spend
             //# on what's probably not going to change the move played.
             let lower = -MATE_LOWER, upper = MATE_LOWER;
+            let output = null;
             while (lower < upper - EVAL_ROUGHNESS)
             {
                 let score = self.bound(history[history.length-1], gamma, depth, false);
@@ -637,6 +638,7 @@ Searcher.prototype = {
                 gamma = (lower + upper + 1) >>> 1;
             }
         }
+        yield [Math.max(1, maxDepth)+1, 0, 0, null]; // signal that maxdepth exceeded
     }
 };
 
@@ -723,7 +725,7 @@ sunfish.engine = function(cmd, output=null) {
     else if (args[0] === "go")
     {
         STOPPED = false;
-        let wtime = Infinity, winc = 0, btime = Infinity, binc = 0, maxdepth = 1000;
+        let wtime = Infinity, winc = 0, btime = Infinity, binc = 0, maxdepth = 999;
         let i = 1;
         while (i < args.length)
         {
@@ -771,25 +773,30 @@ sunfish.engine = function(cmd, output=null) {
         function next()
         {
             if (STOPPED) return done();
-            const nextSearch = search.next();
-            if (nextSearch.done) return done();
-            let [depth, gamma, score, move] = nextSearch.value;
-            //# The only way we can be sure to have the real move in tp_move,
-            //# is if we have just failed high.
-            if (score >= gamma)
+            // batch process multiple moves to avoid "Maximum call stack size exceeded" due to "next" calls
+            let batch = 0;
+            while (++batch <= 1000)
             {
-                let {i, j, prom} = move;
-                if (hist.length % 2 === 0)
+                let nextSearch = search.next();
+                if (nextSearch.done) return done();
+                let [depth, gamma, score, move] = nextSearch.value;
+                //# The only way we can be sure to have the real move in tp_move,
+                //# is if we have just failed high.
+                if (move && (score >= gamma))
                 {
-                    i = 119 - i;
-                    j = 119 - j;
+                    let {i, j, prom} = move;
+                    if (hist.length % 2 === 0)
+                    {
+                        i = 119 - i;
+                        j = 119 - j;
+                    }
+                    move_str = render(i) + render(j) + prom.toLowerCase();
+                    //output("info depth "+depth+" score cp "+score+" pv "+move_str);
                 }
-                move_str = render(i) + render(j) + prom.toLowerCase();
-                output("info depth "+depth+" score cp "+score+" pv "+move_str);
-            }
-            if (move_str && (perf.now() - start > think))
-            {
-                return done();
+                if ((move_str && !isFinite(think)) || (depth > maxdepth) || (perf.now() - start > think))
+                {
+                    return done();
+                }
             }
             nextTick(next);
         }
