@@ -534,7 +534,9 @@ Searcher.prototype = {
             {
                 //# Quiescent search
                 if (val < val_lower)
-                    return;
+                {
+                    break;
+                }
 
                 //# If the new score is less than gamma, the opponent will for sure just
                 //# stand pat, since ""pos.score + val < gamma === -(pos.score + val) >= 1-gamma""
@@ -546,7 +548,7 @@ Searcher.prototype = {
                     yield [move, pos.score + (val < MATE_LOWER ? val : MATE_UPPER)];
                     //# We can also break, since we have ordered the moves by value,
                     //# so it can't get any better than this.
-                    return;
+                    break;
                 }
 
                 yield [move, -self.bound(pos.move(move), 1 - gamma, depth - 1)];
@@ -604,7 +606,7 @@ Searcher.prototype = {
         return best;
     },
 
-    search: function*(history, maxDepth=999/*added maxDepth*/) {
+    search: function*(history, maxDepth=999/*!ADDED!*/) {
         const self = this;
         //"""Iterative deepening MTD-bi search"""
         self.nodes = 0;
@@ -615,14 +617,13 @@ Searcher.prototype = {
         //# In finished games, we could potentially go far enough to cause a recursion
         //# limit exception. Hence we bound the ply. We also can't start at 0, since
         //# that's quiscent search, and we don't always play legal moves there.
-        for (let depth of range(1, Math.max(1, maxDepth)+1))
+        for (let depth of range(1, Math.max(1, maxDepth)+1/*!ADDED!*/))
         {
             //# The inner loop is a binary search on the score of the position.
             //# Inv: lower <= score <= upper
             //# 'while lower != upper' would work, but it's too much effort to spend
             //# on what's probably not going to change the move played.
             let lower = -MATE_LOWER, upper = MATE_LOWER;
-            let output = null;
             while (lower < upper - EVAL_ROUGHNESS)
             {
                 let score = self.bound(history[history.length-1], gamma, depth, false);
@@ -638,7 +639,7 @@ Searcher.prototype = {
                 gamma = (lower + upper + 1) >>> 1;
             }
         }
-        yield [Math.max(1, maxDepth)+1, 0, 0, null]; // signal that maxdepth exceeded
+        yield [Math.max(1, maxDepth)+1, 0, 0, null];/*!ADDED!*/ // signal that maxdepth exceeded
     }
 };
 
@@ -664,13 +665,14 @@ function render(i)
 const startpos = new Position(initial, 0, [true, true], [true, true], 0, 0);
 let hist = [startpos];
 
+/*!ADDED!*/
 const isNode = ("undefined" !== typeof global) && ('[object global]' === {}.toString.call(global));
 const isWebWorker = !isNode && ("undefined" !== typeof WorkerGlobalScope) && ("function" === typeof importScripts) && (navigator instanceof WorkerNavigator);
-
+/*!ADDED!*/
 const perf = isNode ? require('node:perf_hooks').performance : performance;
 const nextTick = isWebWorker ? Promise.resolve().then.bind(Promise.resolve()) : function(then) {then();};
 
-let STOPPED = false;
+let STOPPED = false; /*!ADDED!*/
 
 sunfish.Move = Move;
 sunfish.Position = Position;
@@ -725,6 +727,7 @@ sunfish.engine = function(cmd, output=null) {
     else if (args[0] === "go")
     {
         STOPPED = false;
+        /*!ADDED!*/
         let wtime = Infinity, winc = 0, btime = Infinity, binc = 0, maxdepth = 999;
         let i = 1;
         while (i < args.length)
@@ -762,7 +765,7 @@ sunfish.engine = function(cmd, output=null) {
             winc = binc;
         }
         let move_str = null;
-        const searcher = new Searcher();
+        const searcher = new sunfish.Searcher();
         const search = searcher.search(hist, maxdepth);
         const think = isFinite(wtime) ? 0.8 * Math.min(wtime / 40 + winc, wtime / 2 - 1) : Infinity;
         const start = perf.now();
@@ -805,7 +808,7 @@ sunfish.engine = function(cmd, output=null) {
 
     else if (args[0] === "stop")
     {
-        STOPPED = true;
+        STOPPED = true; /*!ADDED!*/
     }
 
     if (output === defaultOutput) return out.join("\n");
@@ -813,6 +816,7 @@ sunfish.engine = function(cmd, output=null) {
 
 if (isWebWorker)
 {
+    /*!ADDED!*/
     onmessage = function(e) {
         if ("string" === typeof e.data) sunfish.engine(e.data, (output) => postMessage(output));
     };
