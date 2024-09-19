@@ -18,6 +18,58 @@ else
 }('undefined' !== typeof self ? self : this, 'sunfish', function(undef) {
 "use strict";
 
+// utils
+function* count(start=0, step=1)
+{
+    //# count(10) → 10 11 12 13 14 ...
+    //# count(2.5, 0.5) → 2.5 3.0 3.5 ...
+    let n = start;
+    while (true)
+    {
+        yield n;
+        n += step;
+    }
+}
+function* range(start, end=0, step=1)
+{
+    if (1 === arguments.length)
+    {
+        end = start;
+        start = 0;
+        step = 1;
+    }
+    const count = Math.floor((end-start)/step);
+    let i = 0;
+    while (i < count)
+    {
+        yield start + i*step;
+        ++i;
+    }
+}
+function islower(c)
+{
+    return c === c.toLowerCase() && c !== c.toUpperCase();
+}
+function isupper(c)
+{
+    return c === c.toUpperCase() && c !== c.toLowerCase();
+}
+const SPACE = /\s/;
+function isspace(c)
+{
+    return SPACE.test(c);
+}
+function swapcase(s)
+{
+    return s.map(function(c) {return c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase();});
+}
+function sort_reverse(a, b)
+{
+    return b[0]-a[0];
+}
+
+
+//-------------------------------------------------------------------------------------------------
 const sunfish = {version:"sunfish 2023"};
 
 //###############################################################################
@@ -79,41 +131,14 @@ const pst = {
             -4,   3, -14, -50, -57, -18,  13,   4,
             17,  30,  -3, -14,   6,  -1,  40,  18],
 };
-//# Pad tables and join piece and pst dictionaries
-function* count(start=0, step=1)
-{
-    //# count(10) → 10 11 12 13 14 ...
-    //# count(2.5, 0.5) → 2.5 3.0 3.5 ...
-    var n = start;
-    while (true)
-    {
-        yield n;
-        n += step;
-    }
-}
-function* range(start, end=0, step=1)
-{
-    if (1 === arguments.length)
-    {
-        end = start;
-        start = 0;
-        step = 1;
-    }
-    const count = Math.floor((end-start)/step);
-    let i = 0;
-    while (i < count)
-    {
-        yield start + i*step;
-        ++i;
-    }
-}
 
+//# Pad tables and join piece and pst dictionaries
 Object.keys(pst).forEach(function(k) {
     let table = pst[k];
     let padrow = function(row) {return [0].concat(row.map(function(x) {return x + piece[k];})).concat([0]);};
-    let t = [];
+    let t = [], pad = Array(20).fill(0);
     for (let i of range(8)) t = t.concat(padrow(table.slice(i * 8, i * 8 + 8)));
-    pst[k] = Array(20).fill(0).concat(t).concat(Array(20).fill(0));
+    pst[k] = pad.concat(t).concat(pad);
 });
 
 //###############################################################################
@@ -170,35 +195,12 @@ const opt_ranges = {
 //# Chess logic
 //###############################################################################
 
-function islower(c)
-{
-    return c === c.toLowerCase() && c !== c.toUpperCase();
-}
-function isupper(c)
-{
-    return c === c.toUpperCase() && c !== c.toLowerCase();
-}
-function isspace(c)
-{
-    return /\s/.test(c);
-}
-function swapcase(s)
-{
-    return s.map(function(c) {return c === c.toLowerCase() ? c.toUpperCase() : c.toLowerCase();});
-}
-function sort_reverse(a, b)
-{
-    return b[0]-a[0];
-}
-function put(board, i, p)
-{
-    return board.slice(0, i) + p + board.slice(i + 1);
-}
 function Move(i, j, prom)
 {
-    this.i = i;
-    this.j = j;
-    this.prom = prom;
+    const self = this;
+    self.i = i;
+    self.j = j;
+    self.prom = prom;
 }
 Move.prototype = {
     constructor: Move,
@@ -206,6 +208,11 @@ Move.prototype = {
     j: null,
     prom: null
 };
+
+function put(board, i, p)
+{
+    return board.slice(0, i) + p + board.slice(i + 1);
+}
 
 function Position(board, score, wc, bc, ep, kp)
 {
@@ -217,12 +224,13 @@ function Position(board, score, wc, bc, ep, kp)
     //ep - the en passant square
     //kp - the king passant square
     //"""
-    this.board = board;
-    this.score = score;
-    this.wc = wc;
-    this.bc = bc;
-    this.ep = ep;
-    this.kp = kp;
+    const self = this;
+    self.board = board;
+    self.score = score;
+    self.wc = wc;
+    self.bc = bc;
+    self.ep = ep;
+    self.kp = kp;
 }
 Position.prototype = {
     constructor: Position,
@@ -232,9 +240,11 @@ Position.prototype = {
     bc: null,
     ep: null,
     kp: null,
+    _str: null,
     toString: function() {
         const self = this;
-        return self.board+String(self.ep)+String(self.kp)+(self.wc.map(String).join(','))+(self.bc.map(String).join(','));
+        if (null == self._str) self._str = self.board+/*','+String(self.score)+*/','+String(self.ep)+','+String(self.kp)+','+(self.wc.map(String).join(','))+','+(self.bc.map(String).join(','));
+        return self._str;
     },
     gen_moves: function*() {
         //# For each of our pieces, iterate through each possible 'ray' of moves,
@@ -245,7 +255,9 @@ Position.prototype = {
         {
             let p = self.board.charAt(i);
             if (!isupper(p))
+            {
                 continue;
+            }
             for (let d of directions[p])
             {
                 for (let j of count(i + d, d))
@@ -253,24 +265,30 @@ Position.prototype = {
                     let q = self.board.charAt(j);
                     //# Stay inside the board, and off friendly pieces
                     if (isspace(q) || isupper(q))
-                        break;
-                    //# Pawn move, double move and capture
-                    if (p == "P")
                     {
-                        if (-1 < [N, N + N].indexOf(d) && q != ".") break;
-                        if (d == N + N && (i < A1 + N || self.board.charAt(i + N) != ".")) break;
+                        break;
+                    }
+                    //# Pawn move, double move and capture
+                    if (p === "P")
+                    {
+                        if (-1 < [N, N + N].indexOf(d) && q !== ".") break;
+                        if (d === N + N && (i < A1 + N || self.board.charAt(i + N) !== ".")) break;
                         if (
                             -1 < [N + W, N + E].indexOf(d)
-                            && q == "."
+                            && q === "."
                             && -1 === [self.ep, self.kp, self.kp - 1, self.kp + 1].indexOf(j)
                             //#and j != self.ep and abs(j - self.kp) >= 2
                         )
+                        {
                             break;
+                        }
                         //# If we move to the last row, we can be anything
                         if (A8 <= j && j <= H8)
                         {
-                            for (prom of ["N","B","R","Q"])
+                            for (let prom of ["N","B","R","Q"])
+                            {
                                 yield new Move(i, j, prom);
+                            }
                             break;
                         }
                     }
@@ -278,12 +296,18 @@ Position.prototype = {
                     yield new Move(i, j, "");
                     //# Stop crawlers from sliding, and sliding after captures
                     if (-1 < "PNK".indexOf(p) || islower(q))
+                    {
                         break;
+                    }
                     //# Castling, by sliding the rook next to the king
-                    if (i == A1 and self.board.charAt(j + E) == "K" and self.wc[0])
+                    if (i === A1 && self.board.charAt(j + E) === "K" && self.wc[0])
+                    {
                         yield new Move(j + E, j + W, "");
-                    if (i == H1 and self.board.charAt(j + W) == "K" and self.wc[1])
+                    }
+                    if (i === H1 && self.board.charAt(j + W) === "K" && self.wc[1])
+                    {
                         yield new Move(j + W, j + E, "");
+                    }
                 }
             }
         }
@@ -304,21 +328,21 @@ Position.prototype = {
         let q = self.board.charAt(j);
         //# Copy variables and reset ep and kp
         let board = self.board;
-        let wc = self.wc, bc = self.bc, ep= 0, kp = 0;
+        let wc = self.wc, bc = self.bc, ep = 0, kp = 0;
         let score = self.score + self.value(move);
         //# Actual move
         board = put(board, j, board.charAt(i));
         board = put(board, i, ".");
         //# Castling rights, we move the rook or capture the opponent's
-        if (i == A1) wc = [false, wc[1]];
-        if (i == H1) wc = [wc[0], false];
-        if (j == A8) bc = [bc[0], false];
-        if (j == H8) bc = [false, bc[1]];
+        if (i === A1) wc = [false, wc[1]];
+        if (i === H1) wc = [wc[0], false];
+        if (j === A8) bc = [bc[0], false];
+        if (j === H8) bc = [false, bc[1]];
         //# Castling
-        if (p == "K")
+        if (p === "K")
         {
-            wc = [false, false]
-            if (Math.abs(j - i) == 2)
+            wc = [false, false];
+            if (Math.abs(j - i) === 2)
             {
                 kp = (i + j) >>> 1;
                 board = put(board, j < i ? A1 : H1, ".");
@@ -326,20 +350,26 @@ Position.prototype = {
             }
         }
         //# Pawn promotion, double move and en passant capture
-        if (p == "P")
+        if (p === "P")
         {
             if (A8 <= j && j <= H8)
+            {
                 board = put(board, j, prom);
-            if (j - i == 2 * N)
+            }
+            if (j - i === 2 * N)
+            {
                 ep = i + N;
-            if (j == self.ep)
+            }
+            if (j === self.ep)
+            {
                 board = put(board, j + S, ".");
+            }
         }
         //# We rotate the returned position, so it's ready for the next player
         return (new Position(board, score, wc, bc, ep, kp)).rotate();
     },
     value: function(move) {
-        cost self = this;
+        const self = this;
         let {i, j, prom} = move;
         let p = self.board.charAt(i);
         let q = self.board.charAt(j);
@@ -356,19 +386,19 @@ Position.prototype = {
             score += pst["K"][119 - j];
         }
         //# Castling
-        if (p == "K" and Math.abs(i - j) == 2)
+        if (p === "K" && Math.abs(i - j) === 2)
         {
             score += pst["R"][(i + j) >>> 1];
             score -= pst["R"][j < i  ? A1 : H1];
         }
         //# Special pawn stuff
-        if (p == "P")
+        if (p === "P")
         {
             if (A8 <= j && j <= H8)
             {
                 score += pst[prom][j] - pst["P"][j];
             }
-            if (j == self.ep)
+            if (j === self.ep)
             {
                 score += pst["P"][119 - (j + S)];
             }
@@ -382,10 +412,11 @@ Position.prototype = {
 //###############################################################################
 
 //# lower <= s(pos) <= upper
-function Entry(lower upper)
+function Entry(lower, upper)
 {
-    this.lower = lower;
-    this.upper = upper;
+    const self = this;
+    self.lower = lower;
+    self.upper = upper;
 }
 Entry.prototype = {
     constructor: Entry,
@@ -396,10 +427,11 @@ Entry.prototype = {
 
 function Searcher()
 {
-    this.tp_score = {}
-    this.tp_move = {}
-    this.history = set()
-    this.nodes = 0
+    const self = this;
+    self.tp_score = {};
+    self.tp_move = {};
+    self.history = new Set([]);
+    self.nodes = 0
 }
 Searcher.prototype = {
     constructor: Searcher,
@@ -430,7 +462,8 @@ Searcher.prototype = {
         //# Look in the table if we have already searched this position before.
         //# We also need to be sure, that the stored search was over the same
         //# nodes as the current search.
-        let key = pos.toString()+','+String(depth)+','+String(can_null);
+        let pos_key = pos.toString();
+        let key = pos_key+','+String(depth)+','+String(can_null);
         let entry = self.tp_score[key] || (new Entry(-MATE_UPPER, MATE_UPPER));
         if (entry.lower >= gamma) return entry.lower;
         if (entry.upper < gamma) return entry.upper;
@@ -439,11 +472,14 @@ Searcher.prototype = {
         //# - at the root (can_null=False) since it is in history, but not a draw.
         //# - at depth=0, since it would be expensive and break "futulity pruning".
         if (can_null && depth > 0 && self.history.has(pos))
+        {
             return 0;
+        }
 
         //# Generator of moves to search in order.
         //# This allows us to define the moves, but only calculate them if needed.
-        function* moves() {
+        function* moves()
+        {
             //# First try not moving at all. We only do this if there is at least one major
             //# piece left on the board, since otherwise zugzwangs are too dangerous.
             //# FIXME: We also can't null move if we can capture the opponent king.
@@ -460,19 +496,18 @@ Searcher.prototype = {
 
             //# For QSearch we have a different kind of null-move, namely we can just stop
             //# and not capture anything else.
-            if (depth == 0)
+            if (depth === 0)
             {
                 yield [null, pos.score];
             }
 
             //# Look for the strongest ove from last time, the hash-move.
-            let pos_key = pos.toString()
             let killer = self.tp_move[pos_key];
 
             //# If there isn't one, try to find one with a more shallow search.
             //# This is known as Internal Iterative Deepening (IID). We set
             //# can_null=True, since we want to make sure we actually find a move.
-            if (!killer and depth > 2)
+            if (!killer && depth > 2)
             {
                 self.bound(pos, gamma, depth - 3, false);
                 killer = self.tp_move[pos_key];
@@ -494,12 +529,12 @@ Searcher.prototype = {
             //# Then all the other moves
             let _moves = [];
             for (let m of pos.gen_moves()) _moves.push([pos.value(m), m]);
-            _moves.sort(sort_reverse)
+            _moves.sort(sort_reverse);
             for (let [val, move] of _moves)
             {
                 //# Quiescent search
                 if (val < val_lower)
-                    break;
+                    return;
 
                 //# If the new score is less than gamma, the opponent will for sure just
                 //# stand pat, since ""pos.score + val < gamma === -(pos.score + val) >= 1-gamma""
@@ -511,7 +546,7 @@ Searcher.prototype = {
                     yield [move, pos.score + (val < MATE_LOWER ? val : MATE_UPPER)];
                     //# We can also break, since we have ordered the moves by value,
                     //# so it can't get any better than this.
-                    break;
+                    return;
                 }
 
                 yield [move, -self.bound(pos.move(move), 1 - gamma, depth - 1)];
@@ -528,7 +563,7 @@ Searcher.prototype = {
                 //# Save the move for pv construction and killer heuristic
                 if (null != move)
                 {
-                    self.tp_move[pos.toString()] = move;
+                    self.tp_move[pos_key] = move;
                 }
                 break;
             }
@@ -552,11 +587,11 @@ Searcher.prototype = {
         //# realize it's not a mate after all. That's fair.
 
         //# This is too expensive to test at depth == 0
-        if (depth > 2 && best == -MATE_UPPER)
+        if (depth > 2 && best === -MATE_UPPER)
         {
             let flipped = pos.rotate(true);
             //# Hopefully this is already in the TT because of null-move
-            let in_check = self.bound(flipped, MATE_UPPER, 0) == MATE_UPPER;
+            let in_check = self.bound(flipped, MATE_UPPER, 0) === MATE_UPPER;
             best = in_check ? -MATE_LOWER : 0;
         }
 
@@ -569,7 +604,7 @@ Searcher.prototype = {
         return best;
     },
 
-    search: function(history) {
+    search: function*(history, maxDepth=1000/*added maxDepth*/) {
         const self = this;
         //"""Iterative deepening MTD-bi search"""
         self.nodes = 0;
@@ -580,7 +615,7 @@ Searcher.prototype = {
         //# In finished games, we could potentially go far enough to cause a recursion
         //# limit exception. Hence we bound the ply. We also can't start at 0, since
         //# that's quiscent search, and we don't always play legal moves there.
-        for (let depth of range(1, 1000))
+        for (let depth of range(1, Math.max(1, maxDepth)))
         {
             //# The inner loop is a binary search on the score of the position.
             //# Inv: lower <= score <= upper
@@ -591,9 +626,13 @@ Searcher.prototype = {
             {
                 let score = self.bound(history[history.length-1], gamma, depth, false);
                 if (score >= gamma)
+                {
                     lower = score;
+                }
                 if (score < gamma)
+                {
                     upper = score;
+                }
                 yield [depth, gamma, score, self.tp_move[history[history.length-1].toString()]];
                 gamma = (lower + upper + 1) >>> 1;
             }
@@ -606,54 +645,70 @@ Searcher.prototype = {
 //# UCI User interface
 //###############################################################################
 
-
 function parse(c)
 {
-    var fil = c.charCodeAt(0) - 'a'.charCodeAt(0);
-    var rank = parseInt(c.charAt(1)) - 1;
+    const fil = c.charCodeAt(0) - 'a'.charCodeAt(0);
+    const rank = parseInt(c.charAt(1), 10) - 1;
     return A1 + fil - 10 * rank;
 }
 
 function render(i)
 {
-    var rank = Math.floor(i - A1/10);
-    var fil = (i - A1) % 10;
+    const rank = Math.floor((i - A1) / 10);
+    const fil = (A1 > i ? 10 : 0) + ((i - A1) % 10);
     return String.fromCharCode(fil + 'a'.charCodeAt(0)) + String(-rank + 1);
 }
 
 const startpos = new Position(initial, 0, [true, true], [true, true], 0, 0);
 let hist = [startpos];
 
+const isNode = ("undefined" !== typeof global) && ('[object global]' === {}.toString.call(global));
+const isWebWorker = !isNode && ("undefined" !== typeof WorkerGlobalScope) && ("function" === typeof importScripts) && (navigator instanceof WorkerNavigator);
+
+const perf = isNode ? require('node:perf_hooks').performance : performance;
+const nextTick = isWebWorker ? Promise.resolve().then.bind(Promise.resolve()) : function(then) {then();};
+
+let STOPPED = false;
+
 sunfish.Move = Move;
 sunfish.Position = Position;
 sunfish.Entry = Entry;
 sunfish.Searcher = Searcher;
-sunfish.engine = function*(args) {
-    const output = [];
-    if (args[0] == "uci")
+sunfish.engine = function(cmd, output=null) {
+    const args = String(cmd).split(/\s+/g);
+    const out = [];
+    const defaultOutput = (msg) => {out.push(msg);};
+    if (!output) output = defaultOutput;
+
+    if (args[0] === "uci")
     {
-        output.push("id name "+sunfish.version);
-        output.push("uciok");
+        output("id name " + sunfish.version);
+        output("uciok");
     }
 
-    else if (args[0] == "isready")
-    {
-        output.push("readyok");
-    }
-
-    else if (args[0] == "quit")
+    else if (args[0] === "ucinewgame")
     {
     }
 
-    else if (args[0] == "position" && args[1] == "startpos")
+    else if (args[0] === "isready")
+    {
+        output("readyok");
+    }
+
+    else if (args[0] === "quit")
+    {
+        STOPPED = true;
+    }
+
+    else if (args[0] === "position" && args[1] === "startpos")
     {
         hist = [startpos];
-        let moves = args.slice(2);
+        const moves = args.slice(3);
         for (let ply of range(moves.length))
         {
-            let move = moves[ply];
+            const move = moves[ply];
             let i = parse(move.slice(0,2)), j = parse(move.slice(2,4)), prom = move.slice(4).toUpperCase();
-            if (ply % 2 == 1)
+            if (ply % 2 === 1)
             {
                 i = 119 - i;
                 j = 119 - j;
@@ -662,43 +717,96 @@ sunfish.engine = function*(args) {
         }
     }
 
-    else if (args[0] == "go")
+    else if (args[0] === "go")
     {
-        let wtime = parseInt(args[2] || '5000')/1000, btime = parseInt(args[4] || '5000')/1000, winc = parseInt(args[6] || '1000')/1000, binc = parseInt(args[8] || '1000')/1000;
-        if (hist.length % 2 == 0)
+        STOPPED = false;
+        let wtime = Infinity, winc = 0, btime = Infinity, binc = 0, maxdepth = 1000;
+        let i = 1;
+        while (i < args.length)
+        {
+            switch (args[i])
+            {
+                case 'depth':
+                if (i+1 < args.length) maxdepth = parseInt(args[i+1]);
+                i += 2;
+                break;
+                case 'wtime':
+                if (i+1 < args.length) wtime = parseInt(args[i+1]);
+                i += 2;
+                break;
+                case 'btime':
+                if (i+1 < args.length) btime = parseInt(args[i+1]);
+                i += 2;
+                break;
+                case 'winc':
+                if (i+1 < args.length) winc = parseInt(args[i+1]);
+                i += 2;
+                break;
+                case 'binc':
+                if (i+1 < args.length) binc = parseInt(args[i+1]);
+                i += 2;
+                break;
+                default:
+                ++i;
+                break;
+            }
+        }
+        if (hist.length % 2 === 0)
         {
             wtime = btime;
             winc = binc;
         }
-        let think = 0.8 * 1000 * Math.min(wtime / 40 + winc, wtime / 2 - 1);
-        let start = Date.now();
         let move_str = null;
-        let searcher = new Searcher();
-        for (let [depth, gamma, score, move] of searcher.search(hist))
+        const searcher = new Searcher();
+        const search = searcher.search(hist, maxdepth);
+        const think = isFinite(wtime) ? 0.8 * Math.min(wtime / 40 + winc, wtime / 2 - 1) : Infinity;
+        const start = perf.now();
+        function done()
         {
+            output("bestmove " + (move_str || '(none)'));
+        }
+        function next()
+        {
+            if (STOPPED) return done();
+            const nextSearch = search.next();
+            if (nextSearch.done) return done();
+            let [depth, gamma, score, move] = nextSearch.value;
             //# The only way we can be sure to have the real move in tp_move,
             //# is if we have just failed high.
             if (score >= gamma)
             {
-                let i = move.i, j = move.j;
-                if (hist.length % 2 == 0)
+                let {i, j, prom} = move;
+                if (hist.length % 2 === 0)
                 {
                     i = 119 - i;
                     j = 119 - j;
                 }
-                move_str = render(i) + render(j) + move.prom.toLowerCase();
-                //output.push("info depth "+depth+" score cp "+score+" pv "+move_str);
+                move_str = render(i) + render(j) + prom.toLowerCase();
+                output("info depth "+depth+" score cp "+score+" pv "+move_str);
             }
-            if (move_str && (Date.now() - start > think))
+            if (move_str && (perf.now() - start > think))
             {
-                break;
+                return done();
             }
+            nextTick(next);
         }
-
-        output.push("bestmove "+ (move_str || '(none)'));
+        nextTick(next);
     }
-    return output;
+
+    else if (args[0] === "stop")
+    {
+        STOPPED = true;
+    }
+
+    if (output === defaultOutput) return out.join("\n");
 };
+
+if (isWebWorker)
+{
+    onmessage = function(e) {
+        if ("string" === typeof e.data) sunfish.engine(e.data, (output) => postMessage(output));
+    };
+}
 
 // export it
 return sunfish;
