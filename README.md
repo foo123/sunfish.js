@@ -2,7 +2,7 @@
 
 JavaScript port of [Sunfish Python Chess Engine](https://github.com/thomasahle/sunfish)
 
-(NB: NNUE version is not scheduled to be ported)
+(NB: NNUE version will be ported as well)
 
 **Example for node:**
 
