@@ -451,10 +451,6 @@ Position.prototype = {
         //# TODO: I could update a zobrist hash here as well...
         //# Then we are really becoming a real chess program...
         self.board = self.board.slice(0, i) + p + self.board.slice(i+1);
-        //self.wf.add(pst[p].pick(i).subtract(pst[q].pick(i)), false);
-        //self.bf.add(pst[_swapcase(p)].pick(119 - i).subtract(pst[_swapcase(q)].pick(119 - i)), false);
-        //self.wf = matadd(self.wf, matadd(pst[p][i], pst[q][i], -1, 0, -1, 0, 0, 0, -1, 0, 0), 1, 0, -1, 0, 0, 0, -1, 0, 0);
-        //self.bf = matadd(self.bf, matadd(pst[_swapcase(p)][119 - i], pst[_swapcase(q)][119 - i], -1, 0, -1, 0, 0, 0, -1, 0, 0), 1, 0, -1, 0, 0, 0, -1, 0, 0);
         const pstp = pst[p][i],
             pstq = pst[q][i],
             pstb = pst[_swapcase(p)][119 - i],
