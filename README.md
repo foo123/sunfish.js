@@ -49,15 +49,12 @@ bestmove e7e5
 
 **NNUE example for node:**
 
-1. Transform the **NNUE** model pickle from sunfish repo to JSON using the `nnue/nnue-pickle-to-json.py` tool (here `tanh.pickle` NNUE model is used).
-2. Include the `numjs.js` lib dependency which is an analog of Python's `numpy` for JavaScript.
+* Transform the **NNUE** model pickle from sunfish repo to JSON using the `nnue/nnue-pickle-to-json.py` tool (here `tanh.pickle` NNUE model is used).
 
 
 ```javascript
 const sunfish_nnue = require('./sunfish_nnue.js');
 
-// numjs dependency
-sunfish_nnue.numjs(require('./numjs.js'));
 // NNUE json model
 sunfish_nnue.nnue(JSON.parse(require('fs').readFileSync(require('path').join(__dirname, './nnue/models/tanh.json'))));
 

@@ -18,8 +18,6 @@ else
 }('undefined' !== typeof self ? self : this, 'sunfish_nnue', function(undef) {
 "use strict";
 
-let nj = null; // numjs lib is required; a numpy analog for js
-
 // utils
 function* count(start=0, step=1)
 {
@@ -74,7 +72,158 @@ function swapcase(s)
 {
     return s.map(_swapcase);
 }
-
+function mat(r, c, v=0)
+{
+    const m = new Array(r);
+    for (let i=0; i<r; ++i) m[i] = c ? Array(c).fill(v) : v;
+    return m;
+}
+function matmul(a, b, i10=0, i11=-1, j10=0, j11=-1, i20=0, i21=-1, j20=0, j21=-1)
+{
+    let r1 = a.length, c1 = r1 && Array.isArray(a[0]) ? a[0].length : 0;
+    let r2 = b.length, c2 = r2 && Array.isArray(b[0]) ? b[0].length : 0;
+    const vector1 = !c1, vector2 = !c2;
+    if (vector1 && vector2)
+    {
+        if (i21===i20)
+        {
+            c2 = r2;
+            r2 = 1;
+        }
+        else
+        {
+            c2 = 1;
+        }
+        if (i11===i10)
+        {
+            c1 = r1;
+            r1 = 1;
+        }
+        else
+        {
+            c1 = 1;
+        }
+    }
+    else if (vector1)
+    {
+        if (i21===i20)
+        {
+            c1 = 1;
+        }
+        else
+        {
+            c1 = r1;
+            r1 = 1;
+        }
+    }
+    else if (vector2)
+    {
+        if (j11===j10)
+        {
+            c2 = r2;
+            r2 = 1;
+        }
+        else
+        {
+            c2 = 1;
+        }
+    }
+    i11 += 0 > i11 ? r1 : 0;
+    j11 += 0 > j11 ? c1 : 0;
+    i21 += 0 > i21 ? r2 : 0;
+    j21 += 0 > j21 ? c2 : 0;
+    if (j11-j10+1 !== i21-i20+1) throw "matmul dims not match: "+([i11-i10+1,j11-j10+1,i21-i20+1,j21-j20+1].join(','));
+    const n = i11-i10+1, m = j21-j20+1, l = j11-j10+1;
+    const c = new Array(n);
+    for (let i=0; i<n; ++i)
+    {
+        c[i] = new Array(m);
+        for (let j=0; j<m; ++j)
+        {
+            let cij = 0;
+            for (let k=0; k<l; ++k)
+            {
+                cij += (vector1 ? a[k+i10] : a[i+i10][k+j10])*(vector2 ? b[k+i20] : b[k+i20][j+j20]);
+            }
+            c[i][j] = cij;
+        }
+    }
+    return c;
+}
+function matadd(a, b, factor=1, i10=0, i11=-1, j10=0, j11=-1, i20=0, i21=-1, j20=0, j21=-1)
+{
+    let r1 = a.length, c1 = r1 && Array.isArray(a[0]) ? a[0].length : 0;
+    let r2 = b.length, c2 = r2 && Array.isArray(b[0]) ? b[0].length : 0;
+    const vector1 = !c1, vector2 = !c2;
+    if (vector1) {c1 = 1;}
+    if (vector2) {c2 = 1;}
+    i11 += 0 > i11 ? r1 : 0;
+    j11 += 0 > j11 ? c1 : 0;
+    i21 += 0 > i21 ? r2 : 0;
+    j21 += 0 > j21 ? c2 : 0;
+    let rs1 = i11-i10+1, cs1 = j11-j10+1, rs2 = i21-i20+1, cs2 = j21-j20+1;
+    if ((rs1 !== rs2) || (cs1 !== cs2)) throw "matadd dims not match: "+([rs1, cs1, rs2, cs2].join(','));
+    const n = i11-i10+1, m = j21-j20+1;
+    const c = new Array(n);
+    if (vector1 && vector2)
+    {
+        for (let i=0; i<n; ++i)
+        {
+            c[i] = a[i+i10]+factor*b[i+i20];
+        }
+    }
+    else
+    {
+        for (let i=0; i<n; ++i)
+        {
+            c[i] = new Array(m);
+            for (let j=0; j<m; ++j)
+            {
+                c[i][j] = (vector1 ? a[i+i10] : a[i+i10][j+j10])+factor*(vector2 ? b[i+i20] : b[i+i20][j+j20]);
+            }
+        }
+    }
+    return c;
+}
+function matfunc(f, m, i0=0, i1=-1, j0=0, j1=-1)
+{
+    let r = m.length, c = r && Array.isArray(m[0]) ? m[0].length : 0;
+    const vector = !c;
+    let fm = null;
+    if (vector)
+    {
+        if (i0 === i1)
+        {
+            j1 += 0 > j1 ? r : 0;
+            let c2 = j1-j0+1;
+            fm = new Array(c2);
+            for (let j=0; j<c2; ++j) fm[j] = f(m[j+j0]);
+        }
+        else
+        {
+            i1 += 0 > i1 ? r : 0;
+            let r2 = i1-i0+1;
+            fm = new Array(r2);
+            for (let i=0; i<r2; ++i) fm[i] = f(m[i+i0]);
+        }
+    }
+    else
+    {
+        i1 += 0 > i1 ? r : 0;
+        j1 += 0 > j1 ? c : 0;
+        let r2 = i1-i0+1, c2 = j1-j0+1;
+        fm = new Array(r2);
+        for (let i=0; i<r2; ++i)
+        {
+            fm[i] = new Array(c2);
+            for (let j=0; j<c2; ++j)
+            {
+                fm[i][j] = f(m[i+i0][j+j0]);
+            }
+        }
+    }
+    return fm;
+}
 
 //-------------------------------------------------------------------------------------------------
 const sunfish = {version:"sunfish nnue"};
@@ -93,15 +242,17 @@ let scale = 1.0, layer1 = null, layer2 = null, pst = null;
 
 function features(board)
 {
-    const wf = nj.zeros([10]), bf = nj.zeros([10]);
+    const wf = mat(10, 0, 0), bf = mat(10, 0, 0);
     for (let i of range(board.length))
     {
         let p = board.charAt(i);
         if (!isalpha(p)) continue;
+        let q = _swapcase(p);
+        let pstp = pst[p][i], pstq = pst[q][119 - i];
         for (let j=0; j<10; ++j)
         {
-            wf.set(j, wf.get(j)+pst[p].get(i, j));
-            bf.set(j, bf.get(j)+pst[_swapcase(p)].get(119 - i, j));
+            wf[j] += pstp[j];
+            bf[j] += pstq[j];
         }
     }
     return [wf, bf];
@@ -300,8 +451,19 @@ Position.prototype = {
         //# TODO: I could update a zobrist hash here as well...
         //# Then we are really becoming a real chess program...
         self.board = self.board.slice(0, i) + p + self.board.slice(i+1);
-        self.wf.add(pst[p].pick(i).subtract(pst[q].pick(i)), false);
-        self.bf.add(pst[_swapcase(p)].pick(119 - i).subtract(pst[_swapcase(q)].pick(119 - i)), false);
+        //self.wf.add(pst[p].pick(i).subtract(pst[q].pick(i)), false);
+        //self.bf.add(pst[_swapcase(p)].pick(119 - i).subtract(pst[_swapcase(q)].pick(119 - i)), false);
+        //self.wf = matadd(self.wf, matadd(pst[p][i], pst[q][i], -1, 0, -1, 0, 0, 0, -1, 0, 0), 1, 0, -1, 0, 0, 0, -1, 0, 0);
+        //self.bf = matadd(self.bf, matadd(pst[_swapcase(p)][119 - i], pst[_swapcase(q)][119 - i], -1, 0, -1, 0, 0, 0, -1, 0, 0), 1, 0, -1, 0, 0, 0, -1, 0, 0);
+        const pstp = pst[p][i],
+            pstq = pst[q][i],
+            pstb = pst[_swapcase(p)][119 - i],
+            pstd = pst[_swapcase(q)][119 - i];
+        for (let j=0; j<10; ++j)
+        {
+            self.wf[j] += pstp[j] - pstq[j];
+            self.bf[j] += pstb[j] - pstd[j];
+        }
         if (stack) /*self.*/stack.push([i, q]);
     },
     move: function(move) {
@@ -393,18 +555,18 @@ Position.prototype = {
         //#relu6 = lambda x: np.minimum(np.maximum(x, 0), 6)
         //# TODO: We can maybe speed this up using a fixed `out` array,
         //# as well as using .dot istead of @.
-        //act = nj.tanh;
+        let act = Math.tanh;
         let wf = self.wf, bf = self.bf;
         //# Pytorch matrices are in the shape (out_features, in_features)
         //#hidden = layer1 @ act(np.concatenate([wf[1:], bf[1:]]))
-        let hidden = nj.dot(layer1.slice(null, [0,9]), nj.tanh(wf.slice(1))).add(nj.dot(layer1.slice(null, 9), nj.tanh(bf.slice(1))));
-        let score = nj.dot(layer2, nj.tanh(hidden));
+        let hidden = matadd(matmul(layer1, matfunc(act, wf, 1, -1, 0, 0), 0, -1, 0, 8, 0, -1, 0, 0), matmul(layer1, matfunc(act, bf, 1, -1, 0, 0), 0, -1, 9, -1, 0, -1, 0, 0));
+        let score = matmul(layer2, matfunc(act, hidden));
         //#if verbose:
         //#    print(f"Score: {score + model['scale'] * (wf[0] - bf[0])}")
         //#    print(f"from model: {score}, pieces: {wf[0]-bf[0]}")
         //#    print(f"{wf=}")
         //#    print(f"{bf=}")
-        return Math.floor((score.get(0) + scale * (wf.get(0) - bf.get(0))) * 360);
+        return Math.floor((score[0][0] + scale * (wf[0] - bf[0])) * 360);
     },
     hash: function() {
         const self = this;
@@ -525,11 +687,11 @@ Searcher.prototype = {
                 let p = pos.board.charAt(i);
                 let q = pos.board.charAt(j);
                 let p2 = move.prom.length ? move.prom : p;
-                let score = pst[q].get(j,0) - (pst[p2].get(j,0) - pst[p].get(i,0));
+                let score = pst[q][j][0] - (pst[p2][j][0] - pst[p][i][0]);
                 let pp = _swapcase(p);
                 let qq = _swapcase(q);
                 let pp2 = _swapcase(p2);
-                score -= pst[qq].get(119-j,0) - (pst[pp2].get(119-j,0) - pst[pp].get(119-i,0));
+                score -= pst[qq][119-j][0] - (pst[pp2][119-j][0] - pst[pp][119-i][0]);
                 //#pp, qq = p.swapcase(), q.swapcase()
                 //#score = pst[q][j][0] - (pst[p][j][0] - pst[p][i][0])
                 //#score -= pst[qq][119-j][0] - (pst[pp][119-j][0] - pst[pp][119-i][0])
@@ -689,19 +851,16 @@ sunfish.Move = Move;
 sunfish.Position = Position;
 sunfish.Entry = Entry;
 sunfish.Searcher = Searcher;
-sunfish.numjs = function(numjs) {
-    nj = numjs;
-};
 sunfish.nnue = function(nnue_json) {
     if (nnue_json && nnue_json.pst)
     {
         pst = Object.keys(nnue_json.pst).reduce(function(pst, k) {
-            pst[k] = nj.array(nnue_json.pst[k]);
+            pst[k] = nnue_json.pst[k];
             return pst;
         }, {});
         pst[' '] = pst['.'];
-        layer1 = nj.array(nnue_json.layer1);
-        layer2 = nj.array(nnue_json.layer2);
+        layer1 = nnue_json.layer1;
+        layer2 = nnue_json.layer2;
         scale = nnue_json.scale;
         [wf, bf] = features(initial);
         startpos = new Position(initial, 0, wf, bf, [true, true], [true, true], 0, 0);

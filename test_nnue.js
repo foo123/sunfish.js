@@ -2,8 +2,6 @@
 
 const sunfish_nnue = require('./sunfish_nnue.js');
 
-// numjs dependency
-sunfish_nnue.numjs(require('./numjs.js'));
 // NNUE json model
 sunfish_nnue.nnue(JSON.parse(require('fs').readFileSync(require('path').join(__dirname, './nnue/models/tanh.json'))));
 
