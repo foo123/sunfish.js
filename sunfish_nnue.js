@@ -557,7 +557,7 @@ Searcher.prototype = {
             //#for move, pos1 in sorted(moves, key=lambda move_pos: move_pos[1].score):
             let _moves = [];
             for (let m of pos.gen_moves()) _moves.push(m);
-            _moves.sort(function(a, b) {return mvv_lva(b)-mvv_lva(a);});
+            _moves.sort(function(a, b) {return mvv_lva(a)-mvv_lva(b);});
             for (let move of _moves)
             {
                 //# TODO: We seem to have some issues with our QS search, which eventually

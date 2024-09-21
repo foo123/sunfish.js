@@ -78,5 +78,5 @@ runCMD('go depth 4 wtime 10000 btime 10000');
 id name sunfish nnue
 uciok
 readyok
-bestmove e7e5
+bestmove d7d5
 ```
