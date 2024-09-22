@@ -998,6 +998,23 @@ sunfish.engine = function(cmd, output=null) {
     if (output === defaultOutput) return out.join("\n");
 };
 
+
+if (isWebWorker)
+{
+    /*!ADDED!*/
+    onmessage = function(e) {
+        if (e.data && ("string" === typeof e.data.nnue))
+        {
+            sunfish.nnue(JSON.parse(e.data.nnue));
+            postMessage("nnueok");
+        }
+        else if ("string" === typeof e.data)
+        {
+            sunfish.engine(e.data, (output) => postMessage(output));
+        }
+    };
+}
+
 // export it
 return sunfish;
 });
