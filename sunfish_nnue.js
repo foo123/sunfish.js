@@ -826,7 +826,7 @@ function parse(c)
 function render(i)
 {
     const rank = Math.floor((i - A1) / 10);
-    const fil = (A1 > i ? 10 : 0) + ((i - A1) % 10);
+    const fil = /*(A1 > i ? 10 : 0) + ((i - A1) % 10)*/i - A1 - rank*10;
     return String.fromCharCode(fil + 'a'.charCodeAt(0)) + String(-rank + 1);
 }
 
