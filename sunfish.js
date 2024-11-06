@@ -479,7 +479,7 @@ Searcher.prototype = {
         //# Let's not repeat positions. We don't chat
         //# - at the root (can_null=False) since it is in history, but not a draw.
         //# - at depth=0, since it would be expensive and break "futulity pruning".
-        if (can_null && depth > 0 && self.history.has(pos))
+        if (can_null && depth > 0 && self.history.has(pos_key))
         {
             return 0;
         }
@@ -565,17 +565,19 @@ Searcher.prototype = {
 
         //# Run through the moves, shortcutting when possible
         let best = -MATE_UPPER;
+        let tp_move = self.tp_move[pos_key];/*!ADDED!*/
         for (let [move, score] of moves())
         {
             best = Math.max(best, score);
-            if (best >= gamma)
+            if (best >= gamma || !tp_move/*!ADDED!*/)
             {
                 //# Save the move for pv construction and killer heuristic
                 if (null != move)
                 {
                     self.tp_move[pos_key] = move;
+                    tp_move = move;/*!ADDED!*/
                 }
-                break;
+                if (best >= gamma) break;
             }
         }
 
@@ -618,7 +620,7 @@ Searcher.prototype = {
         //"""Iterative deepening MTD-bi search"""
         maxDepth = Math.max(1, maxDepth); /*!ADDED!*/
         self.nodes = 0;
-        self.history = new Set(history);
+        self.history = new Set(history.map(function(pos) {return pos.toString();}));
         self.tp_score = {};
 
         let gamma = 0;
@@ -644,7 +646,7 @@ Searcher.prototype = {
                     upper = score;
                 }
                 yield [depth, gamma, score, self.tp_move[history[history.length-1].toString()]];
-                gamma = (lower + upper + 1) >>> 1;
+                gamma = Math.floor((lower + upper + 1) / 2);
             }
         }
         yield [maxDepth+1, 0, 0, null];/*!ADDED!*/ // signal that maxdepth exceeded
@@ -772,14 +774,14 @@ sunfish.engine = function(cmd, output=null) {
             wtime = btime;
             winc = binc;
         }
-        let move_str = null;
+        let move_str = null, last_move_str = null;
         const searcher = new sunfish.Searcher();
         const search = searcher.search(hist, maxdepth);
         const think = isFinite(wtime) ? 0.8 * Math.min(wtime / 40 + winc, wtime / 2 - 1) : Infinity;
         const start = perf.now();
         function done()
         {
-            output("bestmove " + (move_str || '(none)'));
+            output("bestmove " + (move_str || last_move_str || '(none)'));
         }
         function next()
         {
@@ -793,7 +795,7 @@ sunfish.engine = function(cmd, output=null) {
                 let [depth, gamma, score, move] = nextSearch.value;
                 //# The only way we can be sure to have the real move in tp_move,
                 //# is if we have just failed high.
-                if (move && (score >= gamma))
+                if (move)
                 {
                     let {i, j, prom} = move;
                     if (hist.length % 2 === 0)
@@ -801,7 +803,11 @@ sunfish.engine = function(cmd, output=null) {
                         i = 119 - i;
                         j = 119 - j;
                     }
-                    move_str = render(i) + render(j) + prom.toLowerCase();
+                    last_move_str = render(i) + render(j) + prom.toLowerCase();
+                }
+                if (move && (score >= gamma))
+                {
+                    move_str = last_move_str;
                     //output("info depth "+depth+" score cp "+score+" pv "+move_str);
                 }
                 if ((move_str && !isFinite(think)) || (depth > maxdepth) || (perf.now() - start > think))
